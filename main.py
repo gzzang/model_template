@@ -4,15 +4,15 @@ from scipy.optimize import leastsq
 import time
 import os
 import pickle
-
+import json
+import zipfile
 
 class Model:
-    def __init__(self):
-        self.data = np.loadtxt('input/data.txt', delimiter=',')
+    def __init__(self,data):
+        self.data=data
         self.result = []
 
     def calculate(self):
-        start = time.time()
         Xi = self.data[0]
         Yi = self.data[1]
 
@@ -26,68 +26,127 @@ class Model:
         p0 = [1, 20]
 
         self.result = leastsq(error, p0, args=(Xi, Yi))[0]
-        time.sleep(3)  # 假装计算时间较长
-        print(f'calculate OK (time:{time.time() - start:.3f} seconds)')
-
-    def backup(self):
-        path = 'backup/'
-        if not os.path.exists(path):
-            os.makedirs(path)
-        with open(path + 'model.pkl', 'wb') as f:
-            pickle.dump(self, f)
-        print(f'backup OK')
-
-    def output(self):
+        time.sleep(3)
+        
+    def tabulate(self):
         data = self.data
         result = self.result
-        path = 'output/'
+        result_string=""
+        for co in data.T:
+            result_string+=f'{co[0]:.2f}\t{co[1]:.2f}\n'
+        result_string+=f'{result[0]:.2f}\t{result[1]:.2f}\n'
+        return result_string
+        
+    def plot(self):
+        data = self.data
+        result = self.result
+        fig=plt.figure()
+        plt.scatter(data[0], data[1], label='data')
 
-        def tabulate():
-            with open(path + 'table_data.txt', "w") as f:
-                for co in data.T:
-                    f.write(f'{co[0]}\t{co[1]}\n')
-
-            with open(path + 'table_result.txt', "w") as f:
-                f.write(f'{result[0]}\t{result[1]}\n')
-
-            print(f'tabulate OK ({result[0]:.3f},{result[1]:.3f})')
-
-        def draft():
-            plt.scatter(data[0], data[1], label='data')
-
-            x = np.linspace(0, 12, 100)
-            y = result[0] * x + result[1]
-            plt.plot(x, y, color='tab:orange', label='result')
-
-            plt.legend()
-
-            plt.savefig(path + 'figure.jpg')
-            plt.close()
-
-            print('draft OK')
-
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        tabulate()
-        draft()
+        x = np.linspace(0, 12, 100)
+        y = result[0] * x + result[1]
+        plt.plot(x, y, color='tab:orange', label='result')
+        plt.legend()
+        plt.tight_layout()
+        return fig
 
 
-def calculate():
-    foo = Model()
-    foo.calculate()
-    foo.backup()
+class Result1:
+    def __init__(self,example_flag) -> None:
+        self.example_flag=example_flag
+        example_folder=data_folder+"/"+example_flag
+        input_folder=example_folder+"/input"
+        output_folder=example_folder+"/output"
+        pickle_folder=example_folder+"/pickle"
 
+        with open(example_folder+"/example.json",'r') as load_f:
+            dt_example=json.load(load_f)
 
-def output():
-    with open('backup/model.pkl', 'rb') as f:
-        foo = pickle.load(f)
-    foo.output()
+        if dt_example["is_load"]:
+            with open(pickle_folder+"/model1.pkl", 'rb') as f:
+                foo = pickle.load(f)
+            print(f"{example_flag} load OK")
+        else:
+            data = np.loadtxt(input_folder+"/data.txt", delimiter=',')
+            foo=Model(data)
+            start=time.time()
+            foo.calculate()
+            print(f"{example_flag} calculate OK (time:{time.time() - start:.3f} seconds)")
 
+        with open(pickle_folder + "/model1.pkl", 'wb') as f:
+            pickle.dump(foo, f)
+        print(f"{example_flag} backup OK")
 
-# 计算和输出被分为两部分
-# calculate可保存计算结果
-calculate()
+        fig=foo.plot()
+        fig.savefig(output_folder + "/figure.png")
+        plt.close()
+        print(f"{example_flag} plot OK")
 
-# 在存在计算结果时（backup/model.pkl），output可单独运行，直接输出结果
-output()
+class Result2:
+    def __init__(self,example_flag) -> None:
+        self.example_flag=example_flag
+        example_folder=data_folder+"/"+example_flag
+        input_folder=example_folder+"/input"
+        output_folder=example_folder+"/output"
+        pickle_folder=example_folder+"/pickle"
+
+        with open(example_folder+"/example.json",'r') as load_f:
+            dt_example=json.load(load_f)
+
+        if dt_example["is_load"]:
+            with open(pickle_folder+"/model2.pkl", 'rb') as f:
+                foo = pickle.load(f)
+            print(f"{example_flag} load OK")
+        else:
+            data = np.loadtxt(input_folder+"/data.txt", delimiter=',')
+            foo=Model(data)
+            start=time.time()
+            foo.calculate()
+            print(f"{example_flag} calculate OK (time:{time.time() - start:.3f} seconds)")
+        
+        with open(pickle_folder + "/model2.pkl", 'wb') as f:
+            pickle.dump(foo, f)
+        print(f"{example_flag} backup OK")
+
+        with open(output_folder + "/matrix.txt", "w") as f:
+            f.write(foo.tabulate())
+        print(f"{example_flag} tabulate OK")
+
+if __name__=='__main__':
+    data_folder="data"
+    zip_folder=data_folder+"/_"
+    with open(data_folder+"/data.json",'r') as load_f:
+        dt_data=json.load(load_f)
+    for key,value in dt_data.items():
+        if value:
+            example_flag=key
+            example_folder=data_folder+"/"+example_flag
+            pickle_folder=example_folder+"/pickle"
+            output_folder=example_folder+"/output"
+            
+            if not os.path.exists(pickle_folder):
+                os.makedirs(pickle_folder)
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+
+            with open(example_folder+"/example.json",'r') as load_f:
+                dt_example=json.load(load_f)
+
+            result_dic={
+                "result1":Result1,
+                "result2":Result2,
+            }
+
+            result_class_list=[result_dic[key] for key,value in dt_example["result"].items() if value]
+
+            for result_class in result_class_list:
+                result_class(example_flag)
+
+            if dt_example["is_zip"]:            
+                current_time=time.strftime('%y%m%d%H%M', time.localtime())
+
+                f = zipfile.ZipFile(zip_folder+'/'+current_time+'_'+example_flag+'.zip','w',zipfile.ZIP_DEFLATED) 
+                for dirpath, dirnames, filenames in os.walk(example_folder): 
+                    for filename in filenames: 
+                        f.write(os.path.join(dirpath,filename)) 
+                f.close()
